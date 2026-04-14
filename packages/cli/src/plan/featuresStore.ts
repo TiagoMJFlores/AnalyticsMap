@@ -38,6 +38,7 @@ export function saveFeatures(projectRoot: string, features: Feature[]): void {
     icon: f.icon,
     files: f.files,
     analysisStatus: f.analysisStatus,
+    interactions: f.interactions ?? [],
     trackedCount: f.trackedCount,
     missingCount: f.missingCount,
     coveragePercent: f.coveragePercent,

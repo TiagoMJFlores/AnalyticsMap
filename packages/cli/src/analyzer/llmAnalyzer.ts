@@ -34,7 +34,18 @@ For each interaction found, return:
 - "tracked": true if there is already a call to "${config.trackingFunction}" or similar tracking nearby, false otherwise
 - "existingEvent": if tracked is true, the event name used
 
-Also detect if tracking calls already exist in the file (look for: track(, analytics., posthog., amplitude., mixpanel., firebase.analytics, logEvent).
+Also detect if tracking/analytics calls already exist in the file. Look for these providers:
+- Firebase: analytics().logEvent(), logEvent(analytics, ...), firebase.analytics()
+- Sentry: Sentry.captureException(), Sentry.captureMessage(), Sentry.captureEvent()
+- PostHog: posthog.capture(), usePostHog()
+- Mixpanel: mixpanel.track(), Mixpanel.track()
+- Amplitude: amplitude.track(), amplitude.logEvent()
+- Segment: analytics.track(), analytics.identify()
+- Google Analytics: gtag(), ga(), ReactGA.event()
+- Datadog: datadogRum.addAction(), datadogLogs.logger
+
+For each interaction, also return:
+- "detectedProvider": which analytics provider is used (e.g., "firebase", "sentry", "posthog", "mixpanel", "amplitude", "segment", "google-analytics", "datadog", "custom", "unknown"). Use "none" if no tracking exists.
 
 Return ONLY a JSON array. If no interactions found, return [].
 
@@ -79,6 +90,7 @@ export async function analyzeFile(
       suggestedProps: Record<string, string>;
       tracked: boolean;
       existingEvent?: string;
+      detectedProvider?: string;
     }>;
 
     return parsed.map((item) => ({
@@ -91,6 +103,7 @@ export async function analyzeFile(
       suggestedProps: item.suggestedProps ?? {},
       tracked: item.tracked ?? false,
       existingEvent: item.existingEvent,
+      detectedProvider: (item.detectedProvider as Interaction["detectedProvider"]) ?? "none",
     }));
   } catch (err) {
     if (err instanceof SyntaxError) {

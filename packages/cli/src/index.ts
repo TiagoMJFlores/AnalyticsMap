@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { scanCommand } from "./commands/scan.js";
 import { mapCommand } from "./commands/map.js";
 import { validateCommand } from "./commands/validate.js";
+import { uiCommand } from "./commands/ui.js";
 
 const program = new Command();
 
@@ -35,5 +36,12 @@ program
   .option("-p, --path <path>", "Project root path", process.cwd())
   .option("--ci", "Exit with code 1 on failures")
   .action(validateCommand);
+
+program
+  .command("ui")
+  .description("Open visual dashboard in browser")
+  .option("-p, --path <path>", "Project root path", process.cwd())
+  .option("--port <port>", "Server port", "4821")
+  .action(uiCommand);
 
 program.parse();
