@@ -30,6 +30,21 @@ export interface ProjectInfo {
   lastScanAt: string;
 }
 
+// ── Analytics Providers (detected in code) ──
+
+export type DetectedProvider =
+  | "firebase"
+  | "sentry"
+  | "posthog"
+  | "mixpanel"
+  | "amplitude"
+  | "segment"
+  | "google-analytics"
+  | "datadog"
+  | "custom"
+  | "unknown"
+  | "none";
+
 // ── Interactions ──
 
 export interface Interaction {
@@ -42,6 +57,15 @@ export interface Interaction {
   suggestedProps: Record<string, string>;
   tracked: boolean;
   existingEvent?: string;
+  detectedProvider?: DetectedProvider;
+}
+
+// ── Provider Summary ──
+
+export interface ProviderSummary {
+  provider: DetectedProvider;
+  eventCount: number;
+  files: string[];
 }
 
 // ── Features ──
