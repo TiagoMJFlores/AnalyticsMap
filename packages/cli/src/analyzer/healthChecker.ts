@@ -269,6 +269,56 @@ ${activeProviders.map((p) => {
     score -= 5;
   }
 
+  // Check 6: Hardcoded event names scattered across files (no constants/enum)
+  // Look for event name strings directly in tracking calls vs using constants
+  const hasEventConstants = files.some((f) =>
+    // Check if there's a file with exported constants for event names
+    /export\s+(?:const|enum)\s+(?:Events|EVENTS|AnalyticsEvents|TrackingEvents|EVENT_NAMES)/i.test(f.content) ||
+    /export\s+const\s+[A-Z_]+\s*=\s*['"][a-z_]+['"]/i.test(f.content)
+  );
+
+  if (!hasEventConstants && activeProviders.length > 0) {
+    // Count how many files have hardcoded string event names in tracking calls
+    const filesWithHardcoded: string[] = [];
+    const hardcodedEvents = new Set<string>();
+
+    for (const file of files) {
+      const matches = file.content.matchAll(
+        /(?:track|capture|logEvent)\s*\(\s*(?:analytics\s*,\s*)?['"]([a-z][a-z0-9_]+)['"]/g
+      );
+      const fileEvents: string[] = [];
+      for (const m of matches) {
+        fileEvents.push(m[1]);
+        hardcodedEvents.add(m[1]);
+      }
+      if (fileEvents.length > 0) {
+        filesWithHardcoded.push(file.relativePath);
+      }
+    }
+
+    if (hardcodedEvents.size > 0) {
+      issues.push({
+        id: "hardcoded-event-names",
+        severity: "warning",
+        title: `${hardcodedEvents.size} event names hardcoded as strings`,
+        description: `Event names are inline strings in ${filesWithHardcoded.length} files. Renaming an event requires finding every occurrence manually.`,
+        files: filesWithHardcoded.slice(0, 5),
+        suggestion: "Define event names as constants in a single file. This gives you autocomplete, type safety, and one place to rename.",
+        codeExample: `// events.ts
+export const Events = {
+${Array.from(hardcodedEvents).slice(0, 8).map((e) => `  ${e.toUpperCase()}: '${e}',`).join("\n")}
+} as const;
+
+// usage
+import { Events } from './events';
+track(Events.${Array.from(hardcodedEvents)[0]?.toUpperCase() ?? "EVENT_NAME"});`,
+      });
+      score -= 15;
+    }
+  } else if (hasEventConstants) {
+    passed.push("Event names defined as constants");
+  }
+
   return {
     score: Math.max(0, score),
     issues: issues.sort((a, b) => {

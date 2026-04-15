@@ -76,14 +76,7 @@ const PROPERTY_RULES = [
     message: "Missing 'screen' or 'page' property",
     suggestion: "Always include which screen/page the event happened on for segmentation",
   },
-  {
-    type: "props-type-values",
-    test: (props: Record<string, string>) =>
-      Object.values(props).some((v) => v === "string" || v === "number"),
-    severity: "info" as const,
-    message: "Properties use generic type placeholders",
-    suggestion: "Replace 'string'/'number' with actual descriptive values in your tracking plan",
-  },
+  // Removed: "string"/"number" as prop values are valid type definitions in a tracking plan
 ];
 
 // Duplicate detection across all events
@@ -97,8 +90,14 @@ function findDuplicateNames(interactions: Interaction[]): Map<string, number> {
   return counts;
 }
 
-export function checkEvents(interactions: Interaction[]): EventFeedback[] {
+export function checkEvents(interactions: Interaction[], files?: { relativePath: string; content: string }[]): EventFeedback[] {
   const duplicateCounts = findDuplicateNames(interactions);
+
+  // Check if project has event constants defined
+  const hasEventConstants = files?.some((f) =>
+    /export\s+(?:const|enum)\s+(?:Events|EVENTS|AnalyticsEvents|TrackingEvents|EVENT_NAMES)/i.test(f.content) ||
+    /export\s+const\s+[A-Z_]+\s*=\s*['"][a-z_]+['"]/i.test(f.content)
+  ) ?? false;
 
   return interactions.map((interaction) => {
     const issues: EventIssue[] = [];
@@ -139,6 +138,16 @@ export function checkEvents(interactions: Interaction[]): EventFeedback[] {
         severity: "warning",
         message: `Event name "${eventName}" is used ${count} times`,
         suggestion: "Each event should have a unique name. Add context to distinguish them",
+      });
+    }
+
+    // Hardcoded string check (only for tracked events)
+    if (interaction.tracked && !hasEventConstants) {
+      issues.push({
+        type: "hardcoded-name",
+        severity: "warning",
+        message: "Event name is a hardcoded string",
+        suggestion: "Define as a constant: export const Events = { " + eventName.toUpperCase() + ": '" + eventName + "' }",
       });
     }
 
