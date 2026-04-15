@@ -286,7 +286,7 @@ Return ONLY the modified code snippet. No explanation, no markdown fences.`
   });
 
   // API: Event-level feedback
-  app.get("/api/event-feedback", (_req, res) => {
+  app.get("/api/event-feedback", async (_req, res) => {
     const features = loadFeatures(projectRoot) ?? [];
     const allInteractions = features.flatMap((f: Feature) => f.interactions ?? []);
 
@@ -294,12 +294,15 @@ Return ONLY the modified code snippet. No explanation, no markdown fences.`
       return res.json([]);
     }
 
-    import("../analyzer/eventChecker.js").then(({ checkEvents }) => {
-      const feedback = checkEvents(allInteractions);
+    try {
+      const config = loadConfig(projectRoot);
+      const files = await scanFiles(projectRoot, config);
+      const { checkEvents } = await import("../analyzer/eventChecker.js");
+      const feedback = checkEvents(allInteractions, files);
       res.json(feedback);
-    }).catch((err) => {
+    } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Event check failed" });
-    });
+    }
   });
 
   // Serve UI static files AFTER API routes
