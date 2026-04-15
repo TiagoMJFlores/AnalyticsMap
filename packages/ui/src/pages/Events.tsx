@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useFeatures } from "../hooks/useFeatures.ts";
-import { api, type InteractionData, type CodeContextData } from "../lib/api.ts";
+import { api, type InteractionData, type CodeContextData, type EventFeedbackData, type EventIssueData } from "../lib/api.ts";
 
 const PROVIDER_ICONS: Record<string, string> = {
   firebase: "\uD83D\uDD25",
@@ -50,6 +50,19 @@ export default function Events() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterFeature, setFilterFeature] = useState<string>(featureFromUrl ?? "all");
   const [search, setSearch] = useState("");
+  const [feedback, setFeedback] = useState<Map<string, EventIssueData[]>>(new Map());
+
+  useEffect(() => {
+    api.getEventFeedback()
+      .then((data) => {
+        const map = new Map<string, EventIssueData[]>();
+        for (const fb of data) {
+          if (fb.issues.length > 0) map.set(fb.interactionId, fb.issues);
+        }
+        setFeedback(map);
+      })
+      .catch(() => {});
+  }, [features]);
 
   const allInteractions = useMemo(() => {
     return features.flatMap((f) =>
@@ -191,7 +204,7 @@ export default function Events() {
           </thead>
           <tbody>
             {filtered.map((event) => (
-              <EventRow key={event.id} event={event} />
+              <EventRow key={event.id} event={event} issues={feedback.get(event.id) ?? []} />
             ))}
           </tbody>
         </table>
@@ -200,7 +213,7 @@ export default function Events() {
   );
 }
 
-function EventRow({ event }: { event: InteractionData & { featureName: string; featureIcon: string } }) {
+function EventRow({ event, issues }: { event: InteractionData & { featureName: string; featureIcon: string }; issues: EventIssueData[] }) {
   const [expanded, setExpanded] = useState(false);
   const [context, setContext] = useState<CodeContextData | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(false);
@@ -211,14 +224,16 @@ function EventRow({ event }: { event: InteractionData & { featureName: string; f
       return;
     }
     setExpanded(true);
-    if (!context && !event.tracked) {
+    if (!context) {
       setLoadingCtx(true);
       try {
         const data = await api.getCodeContext(
           event.file,
           event.line,
           event.suggestedEvent,
-          event.suggestedProps ?? {}
+          event.suggestedProps ?? {},
+          event.existingEvent,
+          event.tracked
         );
         setContext(data);
       } catch {
@@ -247,16 +262,27 @@ function EventRow({ event }: { event: InteractionData & { featureName: string; f
           )}
         </td>
         <td className="px-4 py-3">
-          <span className="font-mono text-slate-200">
-            {event.tracked ? event.existingEvent : event.suggestedEvent}
-          </span>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-xs text-slate-500">{event.description}</p>
-            {!event.tracked && (
-              <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                {expanded ? "Hide preview" : "View code preview"}
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-slate-200">
+              {event.tracked ? event.existingEvent : event.suggestedEvent}
+            </span>
+            {issues.length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                issues.some((i) => i.severity === "error")
+                  ? "bg-red-500/20 text-red-400"
+                  : issues.some((i) => i.severity === "warning")
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : "bg-blue-500/20 text-blue-400"
+              }`}>
+                {issues.length} {issues.length === 1 ? "issue" : "issues"}
               </span>
             )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-slate-500">{event.description}</p>
+            <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              {expanded ? "Hide" : issues.length > 0 ? "View issues" : event.tracked ? "Details" : "View code preview"}
+            </span>
           </div>
         </td>
         <td className="px-4 py-3">
@@ -280,9 +306,70 @@ function EventRow({ event }: { event: InteractionData & { featureName: string; f
       {expanded && (
         <tr>
           <td colSpan={6} className="px-4 py-4 bg-slate-800/50">
+            {/* Event issues */}
+            {issues.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {issues.map((issue, i) => (
+                  <div key={i} className={`flex items-start gap-2 text-xs p-2 rounded-lg border ${
+                    issue.severity === "error" ? "border-red-500/20 bg-red-500/5" :
+                    issue.severity === "warning" ? "border-yellow-500/20 bg-yellow-500/5" :
+                    "border-blue-500/20 bg-blue-500/5"
+                  }`}>
+                    <span className="flex-shrink-0">{
+                      issue.severity === "error" ? "\uD83D\uDD34" :
+                      issue.severity === "warning" ? "\uD83D\uDFE1" : "\uD83D\uDD35"
+                    }</span>
+                    <div>
+                      <p className="text-slate-200 font-medium">{issue.message}</p>
+                      <p className="text-slate-400 mt-0.5">{issue.suggestion}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {event.tracked ? (
-              <div className="text-sm text-slate-400">
-                Already tracked with <span className="font-mono text-green-400">{event.existingEvent}</span> via <ProviderBadge provider={event.detectedProvider ?? "unknown"} />
+              <div className="space-y-3">
+                <div className="text-sm text-slate-400">
+                  Tracked with <span className="font-mono text-green-400">{event.existingEvent}</span> via <ProviderBadge provider={event.detectedProvider ?? "unknown"} />
+                </div>
+                {loadingCtx ? (
+                  <div className="text-sm text-slate-500">Loading code context...</div>
+                ) : context ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1.5 uppercase font-semibold">Current implementation</p>
+                      <pre className="bg-slate-900 rounded-lg p-3 text-xs font-mono overflow-x-auto">
+                        {context.before.map((l, i) => (
+                          <div key={`b${i}`} className="text-slate-500">{l}</div>
+                        ))}
+                        <div className="text-green-300 bg-green-500/10 -mx-3 px-3 border-l-2 border-green-500">{context.targetLine}</div>
+                        {context.after.map((l, i) => (
+                          <div key={`a${i}`} className="text-slate-500">{l}</div>
+                        ))}
+                      </pre>
+                    </div>
+                    {issues.length > 0 && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1.5 uppercase font-semibold">Suggested improvement</p>
+                        <pre className="bg-slate-900 rounded-lg p-3 text-xs font-mono overflow-x-auto">
+                          {context.before.map((l, i) => (
+                            <div key={`sb${i}`} className="text-slate-500">{l}</div>
+                          ))}
+                          <div className="text-red-300 bg-red-500/10 -mx-3 px-3 border-l-2 border-red-500 line-through opacity-60">{context.targetLine}</div>
+                          <div className="text-green-300 bg-green-500/10 -mx-3 px-3 border-l-2 border-green-500">
+                            {context.targetLine
+                              .replace(event.existingEvent ?? "", event.suggestedEvent)
+                            }
+                          </div>
+                          {context.after.map((l, i) => (
+                            <div key={`sa${i}`} className="text-slate-500">{l}</div>
+                          ))}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ) : loadingCtx ? (
               <div className="text-sm text-slate-500">Loading code context...</div>
