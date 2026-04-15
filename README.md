@@ -17,24 +17,29 @@ Works with React Native, Swift, Kotlin, Flutter, and React web projects.
 ## Quick start
 
 ```bash
-# Install
-npm install -g analyticsmap
+# Clone and install
+git clone https://github.com/TiagoMJFlores/AnalyticsMap.git
+cd AnalyticsMap
+pnpm install
+pnpm build
 
-# Point it at your project and open the dashboard
-analyticsmap ui --path ./your-app
+# Set your Anthropic API key (needed for feature detection and coverage analysis)
+export ANTHROPIC_API_KEY=sk-...
+
+# Open the dashboard pointing at your project
+node packages/cli/dist/index.js ui --path /path/to/your-app
 ```
 
 The dashboard opens at `localhost:4821`. Click "Map Features" to detect your project's features, then "Analyze" on any feature to see its coverage.
 
-You need an `ANTHROPIC_API_KEY` for feature detection and coverage analysis. Provider detection and health checks work without it.
-
-```bash
-export ANTHROPIC_API_KEY=sk-...
-```
+Provider detection and health checks work without an API key.
 
 ## CLI commands
 
 ```bash
+# Shorthand: alias for convenience
+alias analyticsmap="node /path/to/AnalyticsMap/packages/cli/dist/index.js"
+
 # Detect features in your project
 analyticsmap map --path ./your-app --init
 
