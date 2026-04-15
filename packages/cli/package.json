@@ -2,20 +2,44 @@
   "name": "analyticsmap",
   "version": "0.1.0",
   "type": "module",
-  "description": "Analytics governance for mobile apps. Scan, map, and track analytics coverage.",
+  "description": "Analytics coverage tool for mobile and web apps. Detects providers, maps features, shows what's tracked and what's missing.",
+  "license": "MIT",
+  "author": "Tiago Flores",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TiagoMJFlores/AnalyticsMap"
+  },
+  "keywords": [
+    "analytics",
+    "tracking",
+    "coverage",
+    "firebase",
+    "sentry",
+    "posthog",
+    "mixpanel",
+    "amplitude",
+    "react-native",
+    "swift",
+    "kotlin",
+    "flutter"
+  ],
   "bin": {
     "analyticsmap": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@analyticsmap/shared": "workspace:*",
+    "@analyticsmap/shared": "workspace:^",
     "@anthropic-ai/sdk": "^0.80.0",
     "commander": "^13.0.0",
     "glob": "^11.0.0",
