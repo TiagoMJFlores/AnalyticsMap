@@ -23,7 +23,6 @@ export async function startServer(
   app.use(cors());
   app.use(express.json());
 
-  // Serve UI static files (built Vite output)
   const uiDistPath = path.join(
     path.dirname(new URL(import.meta.url).pathname),
     "..",
@@ -32,9 +31,38 @@ export async function startServer(
     "ui",
     "dist"
   );
-  if (fs.existsSync(uiDistPath)) {
-    app.use(express.static(uiDistPath));
-  }
+
+  // API: Detect providers (no LLM needed, instant)
+  app.get("/api/providers", async (_req, res) => {
+    try {
+      const config = loadConfig(projectRoot);
+      const files = await scanFiles(projectRoot, config);
+      const { detectProviders } = await import("../analyzer/providerDetector.js");
+      const providers = detectProviders(files);
+      res.json(providers);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : "Provider detection failed",
+      });
+    }
+  });
+
+  // API: Analytics health check (no LLM needed)
+  app.get("/api/health-check", async (_req, res) => {
+    try {
+      const config = loadConfig(projectRoot);
+      const files = await scanFiles(projectRoot, config);
+      const { detectProviders } = await import("../analyzer/providerDetector.js");
+      const { checkAnalyticsHealth } = await import("../analyzer/healthChecker.js");
+      const providers = detectProviders(files);
+      const report = checkAnalyticsHealth(files, providers);
+      res.json(report);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : "Health check failed",
+      });
+    }
+  });
 
   // API: Project info
   app.get("/api/project", (_req, res) => {
@@ -160,9 +188,9 @@ export async function startServer(
     res.json({ path: filePath, content, interactions });
   });
 
-  // API: Code context with preview (uses LLM for correct insertion)
+  // API: Code context with preview
   app.post("/api/code-context", async (req, res) => {
-    const { file, line, suggestedEvent, suggestedProps } = req.body;
+    const { file, line, suggestedEvent, suggestedProps, existingEvent, tracked } = req.body;
     const fullPath = path.join(projectRoot, file);
 
     if (!fs.existsSync(fullPath)) {
@@ -171,28 +199,42 @@ export async function startServer(
 
     const content = fs.readFileSync(fullPath, "utf-8");
     const allLines = content.split("\n");
-    const lineIndex = line - 1;
     const CONTEXT = 5;
 
-    const start = Math.max(0, lineIndex - CONTEXT);
-    const end = Math.min(allLines.length, lineIndex + CONTEXT + 1);
-    const before = allLines.slice(Math.max(0, lineIndex - CONTEXT), lineIndex);
-    const targetLine = allLines[lineIndex] ?? "";
-    const after = allLines.slice(lineIndex + 1, lineIndex + 1 + CONTEXT);
+    // For tracked events, find the actual line with the tracking call
+    let actualLineIndex = line - 1;
+    if (tracked && existingEvent) {
+      const searchRange = 10;
+      for (let i = Math.max(0, actualLineIndex - searchRange); i < Math.min(allLines.length, actualLineIndex + searchRange); i++) {
+        if (allLines[i].includes(existingEvent)) {
+          actualLineIndex = i;
+          break;
+        }
+      }
+    }
 
-    const codeSnippet = allLines.slice(start, end).join("\n");
-    const config = loadConfig(projectRoot);
+    const before = allLines.slice(Math.max(0, actualLineIndex - CONTEXT), actualLineIndex);
+    const targetLine = allLines[actualLineIndex] ?? "";
+    const after = allLines.slice(actualLineIndex + 1, actualLineIndex + 1 + CONTEXT);
 
-    try {
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      const anthropic = new Anthropic();
+    // For missing events: use LLM to generate correct insertion
+    let preview: string[] | undefined;
+    if (!tracked) {
+      const start = Math.max(0, actualLineIndex - CONTEXT);
+      const end = Math.min(allLines.length, actualLineIndex + CONTEXT + 1);
+      const codeSnippet = allLines.slice(start, end).join("\n");
+      const config = loadConfig(projectRoot);
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: `You are adding an analytics tracking call to this code. The tracking function is "${config.trackingFunction}".
+      try {
+        const Anthropic = (await import("@anthropic-ai/sdk")).default;
+        const anthropic = new Anthropic();
+
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          messages: [{
+            role: "user",
+            content: `You are adding an analytics tracking call to this code. The tracking function is "${config.trackingFunction}".
 
 Event to add: ${config.trackingFunction}('${suggestedEvent}'${Object.keys(suggestedProps ?? {}).length > 0 ? `, ${JSON.stringify(suggestedProps)}` : ""})
 
@@ -203,35 +245,56 @@ Here is the surrounding code (lines ${start + 1}-${end}):
 ${codeSnippet}
 \`\`\`
 
-Insert the tracking call in the correct place following the language's syntax rules. The tracking should fire when the user interaction happens (e.g., inside a click handler, at the start of a function body, before a return, etc.).
+Insert the tracking call in the correct place following the language's syntax rules. The tracking should fire when the user interaction happens.
 
-Return ONLY the modified code snippet with the tracking call added. No explanation, no markdown fences. Just the code.`
-        }],
-      });
+Return ONLY the modified code snippet. No explanation, no markdown fences.`
+          }],
+        });
 
-      const previewCode = response.content
-        .filter((b) => b.type === "text")
-        .map((b) => (b as { type: "text"; text: string }).text)
-        .join("")
-        .replace(/^```\w*\n?/, "")
-        .replace(/\n?```$/, "")
-        .trim();
+        const previewCode = response.content
+          .filter((b) => b.type === "text")
+          .map((b) => (b as { type: "text"; text: string }).text)
+          .join("")
+          .replace(/^```\w*\n?/, "")
+          .replace(/\n?```$/, "")
+          .trim();
 
-      const preview = previewCode.split("\n");
-
-      res.json({ before, targetLine, after, preview });
-    } catch {
-      // Fallback: simple insertion before target line
-      const indent = targetLine.match(/^(\s*)/)?.[1] ?? "    ";
-      const propsStr = Object.keys(suggestedProps ?? {}).length > 0
-        ? `, ${JSON.stringify(suggestedProps)}`
-        : "";
-      const trackingLine = `${indent}${config.trackingFunction}('${suggestedEvent}'${propsStr});`;
-      const preview = [...before, trackingLine, targetLine, ...after];
-
-      res.json({ before, targetLine, after, preview });
+        preview = previewCode.split("\n");
+      } catch {
+        const indent = targetLine.match(/^(\s*)/)?.[1] ?? "    ";
+        const config = loadConfig(projectRoot);
+        const propsStr = Object.keys(suggestedProps ?? {}).length > 0
+          ? `, ${JSON.stringify(suggestedProps)}`
+          : "";
+        const trackingLine = `${indent}${config.trackingFunction}('${suggestedEvent}'${propsStr});`;
+        preview = [...before, trackingLine, targetLine, ...after];
+      }
     }
+
+    res.json({ before, targetLine, after, preview });
   });
+
+  // API: Event-level feedback
+  app.get("/api/event-feedback", (_req, res) => {
+    const features = loadFeatures(projectRoot) ?? [];
+    const allInteractions = features.flatMap((f: Feature) => f.interactions ?? []);
+
+    if (allInteractions.length === 0) {
+      return res.json([]);
+    }
+
+    import("../analyzer/eventChecker.js").then(({ checkEvents }) => {
+      const feedback = checkEvents(allInteractions);
+      res.json(feedback);
+    }).catch((err) => {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Event check failed" });
+    });
+  });
+
+  // Serve UI static files AFTER API routes
+  if (fs.existsSync(uiDistPath)) {
+    app.use(express.static(uiDistPath));
+  }
 
   // SPA fallback: serve index.html for non-API routes
   app.get("/{*splat}", (_req, res) => {

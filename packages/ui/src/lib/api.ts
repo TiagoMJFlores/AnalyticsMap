@@ -17,14 +17,17 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const api = {
+  getProviders: () => fetchJson<DetectedProviderData[]>("/providers"),
+  getHealthCheck: () => fetchJson<HealthReport>("/health-check"),
   getProject: () => fetchJson<ProjectData>("/project"),
   getFeatures: () => fetchJson<FeatureData[]>("/features"),
   getFiles: () => fetchJson<FileTreeNode[]>("/files"),
   getFile: (path: string) => fetchJson<FileData>(`/file/${encodeURIComponent(path)}`),
   analyzeFeature: (featureId: string) => postJson<FeatureData>(`/analyze/${featureId}`),
   mapFeatures: () => postJson<FeatureData[]>("/map"),
-  getCodeContext: (file: string, line: number, suggestedEvent: string, suggestedProps: Record<string, string>) =>
-    postJson<CodeContextData>("/code-context", { file, line, suggestedEvent, suggestedProps }),
+  getCodeContext: (file: string, line: number, suggestedEvent: string, suggestedProps: Record<string, string>, existingEvent?: string, tracked?: boolean) =>
+    postJson<CodeContextData>("/code-context", { file, line, suggestedEvent, suggestedProps, existingEvent, tracked }),
+  getEventFeedback: () => fetchJson<EventFeedbackData[]>("/event-feedback"),
 };
 
 export interface ProjectData {
@@ -72,6 +75,45 @@ export interface ProviderSummaryData {
   provider: string;
   eventCount: number;
   files: string[];
+}
+
+export interface DetectedProviderData {
+  provider: string;
+  label: string;
+  icon: string;
+  sdkPackage: string;
+  detected: boolean;
+  importFound: boolean;
+  usageCount: number;
+  files: string[];
+}
+
+export interface HealthReport {
+  score: number;
+  issues: HealthIssue[];
+  passed: string[];
+}
+
+export interface HealthIssue {
+  id: string;
+  severity: "error" | "warning" | "info";
+  title: string;
+  description: string;
+  files: string[];
+  suggestion: string;
+  codeExample?: string;
+}
+
+export interface EventFeedbackData {
+  interactionId: string;
+  issues: EventIssueData[];
+}
+
+export interface EventIssueData {
+  type: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+  suggestion: string;
 }
 
 export interface FileTreeNode {
