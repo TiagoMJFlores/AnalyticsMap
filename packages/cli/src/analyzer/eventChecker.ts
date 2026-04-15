@@ -31,18 +31,11 @@ const NAMING_RULES = [
     suggestion: "Keep event names under 50 characters for readability in analytics dashboards",
   },
   {
-    type: "naming-no-action",
-    test: (name: string) => !/(?:click|tap|press|submit|change|select|toggle|open|close|view|load|scroll|swipe|navigate|dismiss|expand|collapse|start|complete|error|success|fail)/.test(name),
+    type: "naming-no-structure",
+    test: (name: string) => name.split("_").length < 2 && !/[A-Z]/.test(name.slice(1)),
     severity: "warning" as const,
-    message: "Event name missing action verb",
-    suggestion: "Include an action like '_click', '_submit', '_view' to clarify what triggers this event",
-  },
-  {
-    type: "naming-no-context",
-    test: (name: string) => name.split("_").length < 2,
-    severity: "warning" as const,
-    message: "Event name lacks context",
-    suggestion: "Use format '{screen}_{element}_{action}' like 'cart_checkout_button_click'",
+    message: "Event name has no structure",
+    suggestion: "Use a multi-part name like '{subject}_{action}' (e.g., 'cart_checkout') so events are groupable and searchable in dashboards",
   },
   {
     type: "naming-mixed-case",

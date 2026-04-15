@@ -350,23 +350,7 @@ function EventRow({ event, issues }: { event: InteractionData & { featureName: s
                       </pre>
                     </div>
                     {issues.length > 0 && (
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1.5 uppercase font-semibold">Suggested improvement</p>
-                        <pre className="bg-slate-900 rounded-lg p-3 text-xs font-mono overflow-x-auto">
-                          {context.before.map((l, i) => (
-                            <div key={`sb${i}`} className="text-slate-500">{l}</div>
-                          ))}
-                          <div className="text-red-300 bg-red-500/10 -mx-3 px-3 border-l-2 border-red-500 line-through opacity-60">{context.targetLine}</div>
-                          <div className="text-green-300 bg-green-500/10 -mx-3 px-3 border-l-2 border-green-500">
-                            {context.targetLine
-                              .replace(event.existingEvent ?? "", event.suggestedEvent)
-                            }
-                          </div>
-                          {context.after.map((l, i) => (
-                            <div key={`sa${i}`} className="text-slate-500">{l}</div>
-                          ))}
-                        </pre>
-                      </div>
+                      <ImprovementSuggestions issues={issues} targetLine={context.targetLine} event={event} />
                     )}
                   </div>
                 ) : null}
@@ -415,5 +399,76 @@ function EventRow({ event, issues }: { event: InteractionData & { featureName: s
         </tr>
       )}
     </>
+  );
+}
+
+function generateImprovedLine(targetLine: string, issues: EventIssueData[], event: InteractionData): string | null {
+  let improved = targetLine;
+  const eventName = event.existingEvent ?? event.suggestedEvent;
+  let newName = eventName;
+
+  const screenPart = event.file.split("/").pop()?.replace(/\.(tsx?|jsx?|swift|kt|dart)$/, "").toLowerCase() ?? "";
+
+  for (const issue of issues) {
+    switch (issue.type) {
+      case "naming-no-structure":
+      case "naming-generic":
+      case "naming-too-short": {
+        newName = `${screenPart}_${eventName}`;
+        break;
+      }
+      case "naming-camel-case": {
+        newName = newName.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+        break;
+      }
+      case "naming-starts-with-on": {
+        newName = newName.replace(/^on[A-Z_]/, (m) => m.slice(2).toLowerCase());
+        break;
+      }
+    }
+  }
+
+  if (newName !== eventName) {
+    improved = improved.replace(eventName, newName);
+  }
+
+  // If nothing changed from naming, check property issues
+  if (improved === targetLine) {
+    const hasPropsIssue = issues.some((i) => i.type === "props-no-screen");
+    if (hasPropsIssue && improved.includes("{")) {
+      // Add screen property
+      const screenName = event.file.split("/").pop()?.replace(/\.(tsx?|jsx?|swift|kt|dart)$/, "") ?? "unknown";
+      improved = improved.replace(/\{\s*/, `{ screen: '${screenName}', `);
+    } else if (hasPropsIssue && !improved.includes("{")) {
+      // Add properties object
+      const screenName = event.file.split("/").pop()?.replace(/\.(tsx?|jsx?|swift|kt|dart)$/, "") ?? "unknown";
+      improved = improved.replace(/\)\s*;?\s*$/, `, { screen: '${screenName}' });`);
+    }
+  }
+
+  return improved !== targetLine ? improved : null;
+}
+
+function ImprovementSuggestions({ issues, targetLine, event }: {
+  issues: EventIssueData[];
+  targetLine: string;
+  event: InteractionData & { featureName: string; featureIcon: string };
+}) {
+  const improvedLine = generateImprovedLine(targetLine, issues, event);
+
+  if (!improvedLine) return null;
+
+  return (
+    <div>
+      <p className="text-xs text-slate-500 mb-1.5 uppercase font-semibold">Suggested improvement</p>
+      <pre className="bg-slate-900 rounded-lg p-3 text-xs font-mono overflow-x-auto space-y-0.5">
+        <div className="text-red-300 bg-red-500/10 -mx-3 px-3 border-l-2 border-red-500 line-through opacity-60">
+          - {targetLine.trim()}
+        </div>
+        <div className="text-green-300 bg-green-500/10 -mx-3 px-3 border-l-2 border-green-500">
+          + {improvedLine.trim()}
+        </div>
+      </pre>
+    </div>
   );
 }
