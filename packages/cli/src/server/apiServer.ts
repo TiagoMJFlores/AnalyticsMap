@@ -201,16 +201,27 @@ export async function startServer(
     const allLines = content.split("\n");
     const CONTEXT = 5;
 
-    // For tracked events, find the actual line with the tracking call
+    // For tracked events, find the exact line with THIS event's tracking call
     let actualLineIndex = line - 1;
     if (tracked && existingEvent) {
-      const searchRange = 10;
-      for (let i = Math.max(0, actualLineIndex - searchRange); i < Math.min(allLines.length, actualLineIndex + searchRange); i++) {
-        if (allLines[i].includes(existingEvent)) {
-          actualLineIndex = i;
-          break;
+      const exactPatterns = [
+        `'${existingEvent}'`,
+        `"${existingEvent}"`,
+      ];
+
+      // Search the ENTIRE file for this exact event, pick closest to interaction line
+      let bestMatch = -1;
+      let bestDistance = Infinity;
+      for (let i = 0; i < allLines.length; i++) {
+        if (exactPatterns.some((p) => allLines[i].includes(p))) {
+          const distance = Math.abs(i - (line - 1));
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestMatch = i;
+          }
         }
       }
+      if (bestMatch >= 0) actualLineIndex = bestMatch;
     }
 
     const before = allLines.slice(Math.max(0, actualLineIndex - CONTEXT), actualLineIndex);
