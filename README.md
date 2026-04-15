@@ -4,6 +4,9 @@ Analytics coverage tool for mobile and web apps. Scans your codebase, detects wh
 
 Works with React Native, Swift, Kotlin, Flutter, and React web projects.
 
+<img width="1152" height="713" alt="image" src="https://github.com/user-attachments/assets/76777840-09f9-49c1-9fac-3a551badf5d9" />
+<img width="1149" height="717" alt="image" src="https://github.com/user-attachments/assets/b25858fc-e764-407a-a490-89d9eacb17e8" />
+
 ## What it does
 
 - Detects analytics providers already in your code (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, and more)
