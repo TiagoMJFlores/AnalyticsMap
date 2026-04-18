@@ -1,23 +1,17 @@
 # AnalyticsMap
 
-## The problem
-
-Auditing analytics in a mobile app can take a day or more. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. Next time someone asks, the exercise starts over.
-
-You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all. You're paying to read code that never had a tracking call in the first place.
-
-AnalyticsMap splits the work into two cheap steps. It groups your files into business features (Checkout, Auth, Profile, Settings) from the code and structure, so each feature maps to the files that actually implement it. Then you pick a feature and it analyzes only that subset: maybe 8 files instead of 200. If you only care about the checkout flow today, you only pay for the checkout flow.
-
-Everything else runs without any LLM at all. Detecting which analytics SDKs you're using, flagging duplicates, hardcoded event names, missing facades, inconsistent naming: regex and string matching on the files you already have open.
-
-The result is a dashboard that shows coverage per feature, the events that exist, the events that don't, and what's wrong with the ones that do.
+Maps analytics coverage across a mobile or web codebase using an LLM (Claude). Detects which tracking SDKs you're already using (Firebase, Sentry, PostHog, and more), groups files into features, and shows per feature what's tracked, what's missing, and what's wrong with the naming. Runs as a CLI and as a local dashboard. Works with React Native, Swift, Kotlin, Flutter, and React web.
 
 <img width="1152" height="713" alt="image" src="https://github.com/user-attachments/assets/76777840-09f9-49c1-9fac-3a551badf5d9" />
 <img width="1149" height="717" alt="image" src="https://github.com/user-attachments/assets/b25858fc-e764-407a-a490-89d9eacb17e8" />
 
+## Why
+
+Auditing analytics in a mobile app is slow. Scanning the whole codebase with an LLM is expensive, since most files have no tracking in them. AnalyticsMap groups files by feature first, then analyzes only the features you pick, so you only pay for the parts you care about. Everything else (provider detection, health checks, naming) runs without an LLM.
+
 ## What it does
 
-Runs on React Native, Swift/SwiftUI, Kotlin/Compose, Flutter, and React web projects. Two layers:
+Two layers:
 
 **Static analysis (no API key needed, instant):**
 - Detects which analytics SDKs are imported and used (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, Google Analytics, Datadog)
