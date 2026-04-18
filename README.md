@@ -2,7 +2,7 @@
 
 ## The problem
 
-Auditing analytics in a mobile app is a day of work. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. A month later it's stale and the exercise starts over.
+Auditing analytics in a mobile app is a day of work. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. Next time someone asks, the exercise starts over.
 
 You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all. You're paying to read code that never had a tracking call in the first place.
 
