@@ -2,13 +2,15 @@
 
 ## The problem
 
-A PM asks how many users tapped the new checkout button last week. Nobody knows. The button was shipped three releases ago, the person who added it didn't add tracking, and now someone has to read through the codebase to figure out what's tracked and what isn't. By the time the answer comes back, the PM has moved on.
+Auditing analytics in a mobile app is a day of work. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. A month later it's stale and the exercise starts over.
 
-Analytics tends to rot quietly. A new screen ships without tracking. Someone adds a second provider "temporarily" and it stays for a year. The same event gets named `checkout_click` in one file, `onCheckoutPressed` in another, and `cart_buy_pressed` in a third. Nobody notices because it doesn't break the build. It just makes every product question take a week.
+You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and you're paying to reread code you already audited. Most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all.
 
-AnalyticsMap scans your mobile or web codebase and answers three questions: what analytics providers are already in the code, what user interactions have tracking and which don't, and where is the existing tracking sloppy.
+AnalyticsMap splits the work into two cheap steps. First it groups your files into business features (Checkout, Auth, Profile, Settings) — one fast LLM call over file paths, not content. Then you pick a feature and it analyzes only that subset: maybe 8 files instead of 200. If you only care about the checkout flow today, you only pay for the checkout flow.
 
-It's meant to run locally (dashboard opens in your browser like Storybook) and in CI (fails the build when coverage drops or rules are violated).
+Everything else — detecting which analytics SDKs you're using, flagging duplicates, hardcoded event names, missing facades, inconsistent naming — runs without any LLM at all. Regex and string matching on the files you already have open.
+
+The result is a dashboard that shows coverage per feature, the events that exist, the events that don't, and what's wrong with the ones that do.
 
 ## What it does
 
