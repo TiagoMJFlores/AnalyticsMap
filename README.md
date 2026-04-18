@@ -1,18 +1,29 @@
 # AnalyticsMap
 
-Analytics coverage tool for mobile and web apps. Scans your codebase, detects which analytics providers you're using, groups files by feature, and shows what's tracked and what's missing.
+## The problem
 
-Works with React Native, Swift, Kotlin, Flutter, and React web projects.
+A PM asks how many users tapped the new checkout button last week. Nobody knows. The button was shipped three releases ago, the person who added it didn't add tracking, and now someone has to read through the codebase to figure out what's tracked and what isn't. By the time the answer comes back, the PM has moved on.
+
+Analytics tends to rot quietly. A new screen ships without tracking. Someone adds a second provider "temporarily" and it stays for a year. The same event gets named `checkout_click` in one file, `onCheckoutPressed` in another, and `cart_buy_pressed` in a third. Nobody notices because it doesn't break the build. It just makes every product question take a week.
+
+AnalyticsMap scans your mobile or web codebase and answers three questions: what analytics providers are already in the code, what user interactions have tracking and which don't, and where is the existing tracking sloppy.
+
+It's meant to run locally (dashboard opens in your browser like Storybook) and in CI (fails the build when coverage drops or rules are violated).
 
 ## What it does
 
-- Detects analytics providers already in your code (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, and more)
-- Groups your files by business feature using Claude
-- Shows analytics coverage per feature with a visual dashboard
-- Lists every tracked and missing event with file and line number
-- Checks event naming quality and implementation patterns
-- Flags hardcoded event names, missing facades, duplicate events, and inconsistent naming
-- Shows code context and suggested tracking code for missing events
+Runs on React Native, Swift/SwiftUI, Kotlin/Compose, Flutter, and React web projects. Two layers:
+
+**Static analysis (no API key needed, instant):**
+- Detects which analytics SDKs are imported and used (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, Google Analytics, Datadog)
+- Flags common problems: no analytics facade, duplicate events across providers, inconsistent naming, hardcoded event names, error-only tracking
+
+**LLM analysis (Claude):**
+- Groups your files into business features ("Checkout", "Auth", "Profile") without manual configuration
+- Finds every user-facing interaction in a feature (buttons, forms, navigation, gestures) and checks whether it has tracking
+- Generates a suggested tracking call for missing events, placed correctly inside the relevant function
+
+The LLM approach means the same tool works across all mobile platforms without per-language parsers. Claude understands that a `<Pressable onPress>` in React Native, a `Button(action:)` in SwiftUI, a `Modifier.clickable` in Compose, and a `GestureDetector` in Flutter are all the same kind of thing.
 
 ## Quick start
 
