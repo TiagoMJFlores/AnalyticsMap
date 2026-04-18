@@ -4,11 +4,11 @@
 
 Auditing analytics in a mobile app is a day of work. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. A month later it's stale and the exercise starts over.
 
-You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and you're paying to reread code you already audited. Most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all.
+You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all. You're paying to read code that never had a tracking call in the first place.
 
-AnalyticsMap splits the work into two cheap steps. First it groups your files into business features (Checkout, Auth, Profile, Settings) — one fast LLM call over file paths, not content. Then you pick a feature and it analyzes only that subset: maybe 8 files instead of 200. If you only care about the checkout flow today, you only pay for the checkout flow.
+AnalyticsMap splits the work into two cheap steps. It groups your files into business features (Checkout, Auth, Profile, Settings) from the code and structure, so each feature maps to the files that actually implement it. Then you pick a feature and it analyzes only that subset: maybe 8 files instead of 200. If you only care about the checkout flow today, you only pay for the checkout flow.
 
-Everything else — detecting which analytics SDKs you're using, flagging duplicates, hardcoded event names, missing facades, inconsistent naming — runs without any LLM at all. Regex and string matching on the files you already have open.
+Everything else runs without any LLM at all. Detecting which analytics SDKs you're using, flagging duplicates, hardcoded event names, missing facades, inconsistent naming: regex and string matching on the files you already have open.
 
 The result is a dashboard that shows coverage per feature, the events that exist, the events that don't, and what's wrong with the ones that do.
 
