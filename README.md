@@ -1,21 +1,34 @@
 # AnalyticsMap
 
-Analytics coverage tool for mobile and web apps. Scans your codebase, detects which analytics providers you're using, groups files by feature, and shows what's tracked and what's missing.
+## The problem
 
-Works with React Native, Swift, Kotlin, Flutter, and React web projects.
+Auditing analytics in a mobile app can take a day or more. Someone opens 40 files, looks for `track(` / `logEvent(` / `capture(`, checks which screens have tracking and which don't, tries to figure out if the naming is consistent, and writes it up in a spreadsheet. Next time someone asks, the exercise starts over.
+
+You could throw the whole codebase at an LLM and ask "what's tracked", but that's expensive. A medium app is 80k+ tokens per scan, and most of what the LLM is looking at (utils, types, config, tests) has no analytics in it at all. You're paying to read code that never had a tracking call in the first place.
+
+AnalyticsMap splits the work into two cheap steps. It groups your files into business features (Checkout, Auth, Profile, Settings) from the code and structure, so each feature maps to the files that actually implement it. Then you pick a feature and it analyzes only that subset: maybe 8 files instead of 200. If you only care about the checkout flow today, you only pay for the checkout flow.
+
+Everything else runs without any LLM at all. Detecting which analytics SDKs you're using, flagging duplicates, hardcoded event names, missing facades, inconsistent naming: regex and string matching on the files you already have open.
+
+The result is a dashboard that shows coverage per feature, the events that exist, the events that don't, and what's wrong with the ones that do.
 
 <img width="1152" height="713" alt="image" src="https://github.com/user-attachments/assets/76777840-09f9-49c1-9fac-3a551badf5d9" />
 <img width="1149" height="717" alt="image" src="https://github.com/user-attachments/assets/b25858fc-e764-407a-a490-89d9eacb17e8" />
 
 ## What it does
 
-- Detects analytics providers already in your code (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, and more)
-- Groups your files by business feature using Claude
-- Shows analytics coverage per feature with a visual dashboard
-- Lists every tracked and missing event with file and line number
-- Checks event naming quality and implementation patterns
-- Flags hardcoded event names, missing facades, duplicate events, and inconsistent naming
-- Shows code context and suggested tracking code for missing events
+Runs on React Native, Swift/SwiftUI, Kotlin/Compose, Flutter, and React web projects. Two layers:
+
+**Static analysis (no API key needed, instant):**
+- Detects which analytics SDKs are imported and used (Firebase, Sentry, PostHog, Mixpanel, Amplitude, Segment, Google Analytics, Datadog)
+- Flags common problems: no analytics facade, duplicate events across providers, inconsistent naming, hardcoded event names, error-only tracking
+
+**LLM analysis (Claude):**
+- Groups your files into business features ("Checkout", "Auth", "Profile") without manual configuration
+- Finds every user-facing interaction in a feature (buttons, forms, navigation, gestures) and checks whether it has tracking
+- Generates a suggested tracking call for missing events, placed correctly inside the relevant function
+
+The LLM approach means the same tool works across all mobile platforms without per-language parsers. Claude understands that a `<Pressable onPress>` in React Native, a `Button(action:)` in SwiftUI, a `Modifier.clickable` in Compose, and a `GestureDetector` in Flutter are all the same kind of thing.
 
 ## Quick start
 
